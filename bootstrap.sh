@@ -17,25 +17,28 @@ if [ -z "$1" ]; then
 fi
 CP_TOKEN="$1"
 
-echo "⚙️  Configuring target directory structure..."
-mkdir -p "$TARGET_DIR"
-chown -R ubuntu:ubuntu "$TARGET_DIR"
+echo "🧹 HARD RESET: Cleaning up any old installations..."
+systemctl stop ${SERVICE_NAME}.timer || true
+systemctl disable ${SERVICE_NAME}.timer || true
+rm -rf "$TARGET_DIR"
 
-echo "📦 Verifying system runtime dependencies (Node.js/npm)..."
+echo "📦 Installing system dependencies (Node.js & npm)..."
 if ! command -v npm &> /dev/null; then
-    echo "⚙️ Node.js/npm not found. Installing via NodeSource LTS..."
-    curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     apt-get install -y nodejs
 else
     echo "✅ Node.js/npm is already installed."
 fi
 
-echo "🔄 Overwriting and pulling fresh deploy manager script..."
+echo "⚙️ Creating target directory structure..."
+mkdir -p "$TARGET_DIR"
+
+echo "📥 Downloading the absolute freshest deploy-worker.sh from GitHub..."
 curl -sL -o "$TARGET_DIR/deploy-worker.sh" "https://raw.githubusercontent.com/$GH_OWNER/$GH_REPO/main/deploy-worker.sh"
 chmod +x "$TARGET_DIR/deploy-worker.sh"
-chown ubuntu:ubuntu "$TARGET_DIR/deploy-worker.sh"
+chown -R ubuntu:ubuntu "$TARGET_DIR"
 
-echo "📝 Rewriting systemd target unit specifications..."
+echo "📝 Registering systemd service..."
 cat <<EOF > /etc/systemd/system/${SERVICE_NAME}.service
 [Unit]
 Description=Pull Latest Worker Repo and Deploy
@@ -69,7 +72,7 @@ echo "🔄 Hard-reloading system configuration states..."
 systemctl daemon-reload
 systemctl enable --now ${SERVICE_NAME}.timer
 
-echo "🚀 Forcing execution of a completely fresh repository synchronization now..."
-systemctl restart ${SERVICE_NAME}.service
+echo "🚀 Forcing deployment script execution right now..."
+systemctl start ${SERVICE_NAME}.service
 
-echo "✨ Active provisioning complete! Node has been fully wiped and updated."
+echo "✨ Active provisioning complete!"
