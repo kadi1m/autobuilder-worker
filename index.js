@@ -100,6 +100,10 @@ async function processJob(job) {
     # Build the new image (old container is still running here, zero downtime during build!)
     docker build -t ${imageName} . || exit 1
     
+    # Delete the repo to save disk space
+    cd ..
+    rm -rf "${workDir}"
+    
     # Delete the old container (only if it exists)
     if [ "$(docker ps -aq -f name=^${containerName}$ 2> /dev/null)" ]; then docker rm -f ${containerName}; fi
     
