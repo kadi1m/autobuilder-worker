@@ -21,6 +21,15 @@ echo "⚙️  Configuring target directory structure..."
 mkdir -p "$TARGET_DIR"
 chown -R ubuntu:ubuntu "$TARGET_DIR"
 
+echo "📦 Verifying system runtime dependencies (Node.js/npm)..."
+if ! command -v npm &> /dev/null; then
+    echo "⚙️ Node.js/npm not found. Installing via NodeSource LTS..."
+    curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+    apt-get install -y nodejs
+else
+    echo "✅ Node.js/npm is already installed."
+fi
+
 echo "🔄 Overwriting and pulling fresh deploy manager script..."
 curl -sL -o "$TARGET_DIR/deploy-worker.sh" "https://raw.githubusercontent.com/$GH_OWNER/$GH_REPO/main/deploy-worker.sh"
 chmod +x "$TARGET_DIR/deploy-worker.sh"
