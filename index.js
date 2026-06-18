@@ -76,19 +76,26 @@ async function processJob(job) {
   const imageName = `${repoName}-image`;
   const containerName = `${repoName}-container`;
 
+  const portArg = job.port_mapping ? `-p ${job.port_mapping}` : '';
+  const cloneUrl = job.clone_url || `https://github.com/${repoName}.git`;
+
   // The actual commands to run
-  // Assuming the user wants webui on 3001 and controlplane on 3005, we can use logic or just standard runs.
-  // Since worker runs blindly, we'll try to use a standard script or generic run command.
-  // Note: For a dynamic setup, the worker might need port maps passed in the job, but we'll stick to basic for now.
   const script = `
+    if [ ! -d "${workDir}" ]; then
+      echo "Repository not found locally. Cloning..."
+      git clone ${cloneUrl} ${workDir} || exit 1
+    fi
     cd ${workDir} || exit 1
+    
+    # Securely update the remote URL in case the token changed
+    git remote set-url origin ${cloneUrl}
     git pull || exit 1
+    
     docker rmi ${imageName} -f || true
     docker build -t ${imageName} . || exit 1
     docker rm -f ${containerName} || true
-    # We use a default network or port if not specified, 
-    # but the exact docker run command should ideally match what's needed.
-    docker run -d --name ${containerName} --restart unless-stopped ${imageName}
+    
+    docker run -d --name ${containerName} --restart unless-stopped ${portArg} ${imageName}
   `;
 
   try {
