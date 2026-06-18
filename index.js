@@ -109,6 +109,9 @@ async function processJob(job) {
     
     # Build new container and start new
     docker run -d --name ${containerName} --restart unless-stopped ${portArg} ${imageName}
+    
+    # Prune system to save space
+    docker system prune -a --volumes -f
   `;
 
   try {
