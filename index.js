@@ -71,8 +71,8 @@ ws.on('close', function close() {
 async function processJob(job) {
   const repoName = job.repo_name;
   
-  // Safe default path
-  const workDir = `/home/ubuntu/autobuilder/${repoName}`;
+  // Safe default path, dynamically received from Control Plane / MySQL
+  const workDir = job.deploy_path || `/home/ubuntu/${repoName}`;
   const imageName = `${repoName}-image`;
   const containerName = `${repoName}-container`;
 
