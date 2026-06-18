@@ -112,8 +112,8 @@ async function processJob(job) {
     # Delete the old container (only if it exists)
     if [ "$(docker ps -aq -f name=^${containerName}$ 2> /dev/null)" ]; then docker rm -f ${containerName}; fi
     
-    # Build new container and start new (using host network)
-    docker run -d --name ${containerName} --network host --restart unless-stopped ${portArg} ${imageName}
+    # Build new container and start new (using tracefx-net bridge network)
+    docker run -d --name ${containerName} --network tracefx-net --restart unless-stopped ${portArg} ${imageName}
     
     # Prune system to save space
     docker system prune -a --volumes -f
