@@ -6,7 +6,6 @@ GH_REPO="autobuilder-worker"
 TARGET_DIR="/opt/worker"
 SERVICE_NAME="worker-update"
 
-# Enforce that the installer infrastructure setup uses administrative privileges
 if [ "$EUID" -ne 0 ]; then
   echo "❌ This setup script must be run with administrative privileges. Please use 'sudo bash'."
   exit 1
@@ -18,16 +17,16 @@ if [ -z "$1" ]; then
 fi
 CP_TOKEN="$1"
 
-echo "⚙️  Configuring environment paths..."
+echo "⚙️  Configuring target directory structure..."
 mkdir -p "$TARGET_DIR"
 chown -R ubuntu:ubuntu "$TARGET_DIR"
 
-# Fetch execution block
+echo "🔄 Overwriting and pulling fresh deploy manager script..."
 curl -sL -o "$TARGET_DIR/deploy-worker.sh" "https://raw.githubusercontent.com/$GH_OWNER/$GH_REPO/main/deploy-worker.sh"
 chmod +x "$TARGET_DIR/deploy-worker.sh"
 chown ubuntu:ubuntu "$TARGET_DIR/deploy-worker.sh"
 
-echo "📝 Registering systemd system units..."
+echo "📝 Rewriting systemd target unit specifications..."
 cat <<EOF > /etc/systemd/system/${SERVICE_NAME}.service
 [Unit]
 Description=Pull Latest Worker Repo and Deploy
@@ -57,10 +56,11 @@ Persistent=true
 WantedBy=timers.target
 EOF
 
-echo "🔄 Refreshing system orchestration configuration..."
+echo "🔄 Hard-reloading system configuration states..."
 systemctl daemon-reload
 systemctl enable --now ${SERVICE_NAME}.timer
 
-# Fire immediate update
-systemctl start ${SERVICE_NAME}.service
-echo "✨ Active provisioning complete. The system will handle updates cleanly as 'ubuntu'."
+echo "🚀 Forcing execution of a completely fresh repository synchronization now..."
+systemctl restart ${SERVICE_NAME}.service
+
+echo "✨ Active provisioning complete! Node has been fully wiped and updated."
