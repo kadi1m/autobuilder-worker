@@ -1,5 +1,5 @@
 const WebSocket = require('ws');
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
 const os = require('os');
 
 const CONTROL_PLANE_HOST = process.env.CONTROL_PLANE_HOST || '51.81.87.208:3005';
@@ -113,11 +113,35 @@ async function processJob(job) {
   }
 }
 
+const { spawn } = require('child_process');
+
 function executeShell(script) {
   return new Promise((resolve, reject) => {
-    exec(script, { shell: '/bin/bash' }, (error, stdout, stderr) => {
-      const fullLog = `--- STDOUT ---\n${stdout}\n--- STDERR ---\n${stderr}`;
-      if (error) {
+    console.log(`[Worker] Executing deployment script...`);
+    const child = spawn('/bin/bash', ['-c', script]);
+    
+    let fullLog = '';
+    
+    child.stdout.on('data', (data) => {
+      process.stdout.write(data); // Stream live to PM2 logs
+      fullLog += data.toString();
+    });
+    
+    child.stderr.on('data', (data) => {
+      process.stderr.write(data); // Stream live to PM2 logs
+      fullLog += data.toString();
+    });
+    
+    child.on('error', (err) => {
+      console.error(`[Worker] Script execution error:`, err);
+      err.output = fullLog;
+      reject(err);
+    });
+
+    child.on('close', (code) => {
+      console.log(`[Worker] Script finished with exit code ${code}`);
+      if (code !== 0) {
+        const error = new Error(`Command failed with exit code ${code}`);
         error.output = fullLog;
         reject(error);
       } else {
