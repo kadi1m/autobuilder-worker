@@ -20,13 +20,25 @@ echo "🚀 Beginning worker build tasks on node: $NODE_ID"
 curl -sL -o source.tar.gz "https://api.github.com/repos/$GH_OWNER/$GH_REPO/tarball/main"
 
 mkdir -p "$TARGET_DIR/app"
-tar -xzf source.tar.gz -C "$TARGET_DIR/app" --strip-components=1
+tar -xzmf source.tar.gz -C "$TARGET_DIR/app" --strip-components=1
 rm source.tar.gz
 
 # --- Execute App Build Dependencies Here ---
 cd "$TARGET_DIR/app"
-# e.g., npm install, go build, etc.
+echo "📦 Installing Node dependencies..."
+npm install
 
+echo "🚀 Starting Worker Agent via PM2..."
+# Install pm2 globally if it doesn't exist
+if ! command -v pm2 &> /dev/null; then
+    sudo npm install -g pm2
+fi
+
+# We use CP_TOKEN to authenticate if needed, or just let PM2 manage the process
+# Since index.js uses CONTROL_PLANE_HOST, we can pass it as an environment variable
+export CONTROL_PLANE_HOST="51.81.87.208:3005"
+pm2 start index.js --name "autobuilder-worker" --update-env || pm2 restart "autobuilder-worker" --update-env
+pm2 save
 # Announce health state to your controller loop
 curl -X POST "$CONTROL_PLANE_URL" \
   -H "Authorization: Bearer $CP_TOKEN" \
