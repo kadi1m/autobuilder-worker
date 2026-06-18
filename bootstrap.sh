@@ -39,9 +39,10 @@ After=network.target
 
 [Service]
 Type=oneshot
+# Changed from root to ubuntu
 User=ubuntu
+Group=ubuntu
 WorkingDirectory=$TARGET_DIR
-# Executes the local script using only the Control Plane token
 ExecStart=/bin/bash $TARGET_DIR/deploy-worker.sh "$CP_TOKEN"
 
 [Install]
