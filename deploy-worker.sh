@@ -36,10 +36,6 @@ npm install --omit=dev
 
 # 4. Start or restart the worker process via PM2
 echo "🔄 Starting/Restarting worker process with PM2..."
-if ! command -v pm2 &> /dev/null; then
-  echo "📦 PM2 not found, installing globally..."
-  npm install -g pm2
-fi
 
 # If PM2 is already managing the worker, restart it. Otherwise, start fresh.
 if pm2 describe worker-node &> /dev/null; then

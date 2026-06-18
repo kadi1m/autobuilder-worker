@@ -22,12 +22,17 @@ systemctl stop ${SERVICE_NAME}.timer || true
 systemctl disable ${SERVICE_NAME}.timer || true
 rm -rf "$TARGET_DIR"
 
-echo "📦 Installing system dependencies (Node.js & npm)..."
+echo "📦 Installing system dependencies (Node.js, npm, pm2)..."
 if ! command -v npm &> /dev/null; then
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     apt-get install -y nodejs
 else
     echo "✅ Node.js/npm is already installed."
+fi
+
+if ! command -v pm2 &> /dev/null; then
+    echo "📦 Installing PM2 globally..."
+    npm install -g pm2
 fi
 
 echo "⚙️ Creating target directory structure..."
