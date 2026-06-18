@@ -91,10 +91,16 @@ async function processJob(job) {
     git remote set-url origin ${cloneUrl}
     git pull || exit 1
     
+    # Delete old image (force untag to allow new build while old container runs)
     docker rmi ${imageName} -f || true
+    
+    # Build the new image (old container is still running here, zero downtime during build!)
     docker build -t ${imageName} . || exit 1
+    
+    # Delete the old container
     docker rm -f ${containerName} || true
     
+    # Build new container and start new
     docker run -d --name ${containerName} --restart unless-stopped ${portArg} ${imageName}
   `;
 
