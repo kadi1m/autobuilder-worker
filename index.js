@@ -26,7 +26,8 @@ ws.on('message', async function message(data) {
 
     if (msg.error) {
       console.error('[Worker] Fatal Error from Control Plane:', msg.error);
-      process.exit(1);
+      ws.close(); // Let the close handler manage the retry
+      return;
     }
 
     if (msg.type === 'no_job') {
@@ -53,6 +54,11 @@ ws.on('message', async function message(data) {
   } catch (err) {
     console.error('[Worker] Error processing message:', err);
   }
+});
+
+ws.on('error', async function error(err) {
+  console.error('[Worker] WebSocket error:', err.message);
+  await sendLog('system', 'failure', `WebSocket connection error: ${err.message}`);
 });
 
 ws.on('close', function close() {

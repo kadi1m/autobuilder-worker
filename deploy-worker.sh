@@ -31,8 +31,25 @@ rm /tmp/source.tar.gz
 
 # --- Execute App Build / Runtime Setup Here ---
 cd "$TARGET_DIR/app"
-echo "🛠️ Compiling/Installing dependencies..."
-# Add your execution commands here (e.g., npm install, go build, etc.)
+echo "🛠️ Installing dependencies..."
+npm install --omit=dev
+
+# 4. Start or restart the worker process via PM2
+echo "🔄 Starting/Restarting worker process with PM2..."
+if ! command -v pm2 &> /dev/null; then
+  echo "📦 PM2 not found, installing globally..."
+  npm install -g pm2
+fi
+
+# If PM2 is already managing the worker, restart it. Otherwise, start fresh.
+if pm2 describe worker-node &> /dev/null; then
+  CONTROL_PLANE_HOST="51.81.87.208:3005" pm2 restart worker-node --update-env
+else
+  CONTROL_PLANE_HOST="51.81.87.208:3005" pm2 start "$TARGET_DIR/app/index.js" \
+    --name worker-node \
+    --env production
+  pm2 save
+fi
 
 # 4. Notify Control Plane of successful sync
 echo "📡 Announcing state to Control Plane..."
