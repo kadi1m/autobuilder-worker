@@ -70,6 +70,7 @@ ws.on('close', function close() {
 
 async function processJob(job) {
   const repoName = job.repo_name;
+  const commitId = job.commit_id;
   
   // Safe default path, dynamically received from Control Plane / MySQL
   const workDir = job.deploy_path || `/home/ubuntu/${repoName}`;
@@ -106,10 +107,10 @@ async function processJob(job) {
 
   try {
     const output = await executeShell(script);
-    await sendLog(repoName, 'success', output);
+    await sendLog(repoName, commitId, 'success', output);
   } catch (err) {
     console.error(`[Worker] Job failed: ${err.message}`);
-    await sendLog(repoName, 'failure', err.message + '\n' + err.output);
+    await sendLog(repoName, commitId, 'failure', err.message + '\n' + err.output);
   }
 }
 
@@ -150,7 +151,7 @@ function executeShell(script) {
   });
 }
 
-async function sendLog(repoName, status, logOutput) {
+async function sendLog(repoName, commitId, status, logOutput) {
   try {
     const res = await fetch(`http://${CONTROL_PLANE_HOST}/worker/log`, {
       method: 'POST',
@@ -158,6 +159,7 @@ async function sendLog(repoName, status, logOutput) {
       body: JSON.stringify({
         node_id: NODE_ID,
         repo_name: repoName,
+        commit_id: commitId,
         status: status,
         log_output: logOutput
       })
