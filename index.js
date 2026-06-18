@@ -74,7 +74,7 @@ async function processJob(job) {
   // Safe default path, dynamically received from Control Plane / MySQL
   const workDir = job.deploy_path || `/home/ubuntu/${repoName}`;
   const imageName = `${repoName}-image`;
-  const containerName = `${repoName}-container`;
+  const containerName = job.container_name || `${repoName}-container`;
 
   const portArg = job.port_mapping ? `-p ${job.port_mapping}` : '';
   const cloneUrl = job.clone_url || `https://github.com/${repoName}.git`;
