@@ -34,17 +34,17 @@ cd "$TARGET_DIR/app"
 echo "🛠️ Installing dependencies..."
 npm install --omit=dev
 
-# 4. Start or restart the worker process via PM2
+# 4. Start or restart the worker process via PM2 using npx
 echo "🔄 Starting/Restarting worker process with PM2..."
 
 # If PM2 is already managing the worker, restart it. Otherwise, start fresh.
-if pm2 describe worker-node &> /dev/null; then
-  CONTROL_PLANE_HOST="51.81.87.208:3005" pm2 restart worker-node --update-env
+if npx pm2 describe worker-node &> /dev/null; then
+  CONTROL_PLANE_HOST="51.81.87.208:3005" npx pm2 restart worker-node --update-env
 else
-  CONTROL_PLANE_HOST="51.81.87.208:3005" pm2 start "$TARGET_DIR/app/index.js" \
+  CONTROL_PLANE_HOST="51.81.87.208:3005" npx pm2 start "$TARGET_DIR/app/index.js" \
     --name worker-node \
     --env production
-  pm2 save
+  npx pm2 save
 fi
 
 # 4. Notify Control Plane of successful sync

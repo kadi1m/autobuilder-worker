@@ -55,6 +55,7 @@ User=ubuntu
 Group=ubuntu
 WorkingDirectory=$TARGET_DIR
 ExecStart=/bin/bash $TARGET_DIR/deploy-worker.sh "$CP_TOKEN"
+KillMode=process
 
 [Install]
 WantedBy=multi-user.target
