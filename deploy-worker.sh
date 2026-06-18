@@ -3,7 +3,7 @@ set -e
 
 GH_OWNER="kadi1m"
 GH_REPO="autobuilder-worker"
-CONTROL_PLANE_URL="https://controlplane.yourdomain.com/api/register"
+CONTROL_PLANE_URL="http://51.81.87.208:3005/register"
 TARGET_DIR="/opt/worker"
 
 if [ -z "$1" ]; then
