@@ -98,6 +98,7 @@ async function processJob(job) {
       echo "Repository not found locally. Cloning..."
       sudo mkdir -p "$(dirname "${workDir}")" || exit 1
       sudo chown -R $(whoami) "$(dirname "${workDir}")" || exit 1
+      cd "$(dirname "${workDir}")" || exit 1
       git clone ${cloneUrl} "${workDir}" || exit 1
     fi
     cd ${workDir} || exit 1
