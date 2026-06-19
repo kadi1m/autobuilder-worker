@@ -16,6 +16,13 @@ console.log(`[Worker] Connecting to ws://${CONTROL_PLANE_HOST}/worker/ws`);
 
 let isProcessing = false;
 
+// Keep-alive to prevent load balancers/proxies from dropping idle connections
+setInterval(() => {
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.ping();
+  }
+}, 15000);
+
 ws.on('open', function open() {
   console.log('[Worker] Connected to Control Plane');
   // Initially idle
