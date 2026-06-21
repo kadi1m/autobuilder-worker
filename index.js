@@ -15,6 +15,7 @@ const ws = new WebSocket(`ws://${CONTROL_PLANE_HOST}/worker/ws`);
 console.log(`[Worker] Connecting to ws://${CONTROL_PLANE_HOST}/worker/ws`);
 
 let isProcessing = false;
+const containerLogStreams = {};
 
 // Keep-alive to prevent load balancers/proxies from dropping idle connections
 setInterval(() => {
@@ -62,6 +63,50 @@ ws.on('message', async function message(data) {
       console.log(`[Worker] Job finished. Reporting idle.`);
       isProcessing = false;
       ws.send('idle');
+      return;
+    }
+
+    if (msg.type === 'start_container_log') {
+      const containerName = msg.payload?.container_name;
+      if (!containerName) return;
+      if (containerLogStreams[containerName]) return; // Already streaming
+
+      console.log(`[Worker] Starting live log stream for container: ${containerName}`);
+      const logProcess = spawn('docker', ['logs', '-f', '--tail', '100', containerName]);
+      containerLogStreams[containerName] = logProcess;
+
+      logProcess.stdout.on('data', (data) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'container_log',
+            payload: { container_name: containerName, data: data.toString() }
+          }));
+        }
+      });
+
+      logProcess.stderr.on('data', (data) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'container_log',
+            payload: { container_name: containerName, data: data.toString() }
+          }));
+        }
+      });
+
+      logProcess.on('close', () => {
+        delete containerLogStreams[containerName];
+      });
+      return;
+    }
+
+    if (msg.type === 'stop_container_log') {
+      const containerName = msg.payload?.container_name;
+      if (containerName && containerLogStreams[containerName]) {
+        console.log(`[Worker] Stopping live log stream for container: ${containerName}`);
+        containerLogStreams[containerName].kill();
+        delete containerLogStreams[containerName];
+      }
+      return;
     }
   } catch (err) {
     console.error('[Worker] Error processing message:', err);
@@ -138,7 +183,7 @@ async function processJob(job) {
   `;
 
   try {
-    const output = await executeShell(script);
+    const output = await executeShell(script, repoName, commitId);
     await sendLog(repoName, commitId, 'success', output, containerName);
   } catch (err) {
     console.error(`[Worker] Job failed: ${err.message}`);
@@ -147,7 +192,7 @@ async function processJob(job) {
 }
 
 
-function executeShell(script) {
+function executeShell(script, repoName, commitId) {
   return new Promise((resolve, reject) => {
     console.log(`[Worker] Executing deployment script...`);
     const child = spawn('/bin/bash', ['-c', script]);
@@ -156,12 +201,20 @@ function executeShell(script) {
     
     child.stdout.on('data', (data) => {
       process.stdout.write(data); // Stream live to PM2 logs
-      fullLog += data.toString();
+      const chunk = data.toString();
+      fullLog += chunk;
+      if (ws.readyState === WebSocket.OPEN && repoName && commitId) {
+        ws.send(JSON.stringify({ type: 'live_log', payload: { repo_name: repoName, commit_id: commitId, data: chunk } }));
+      }
     });
     
     child.stderr.on('data', (data) => {
       process.stderr.write(data); // Stream live to PM2 logs
-      fullLog += data.toString();
+      const chunk = data.toString();
+      fullLog += chunk;
+      if (ws.readyState === WebSocket.OPEN && repoName && commitId) {
+        ws.send(JSON.stringify({ type: 'live_log', payload: { repo_name: repoName, commit_id: commitId, data: chunk } }));
+      }
     });
     
     child.on('error', (err) => {
