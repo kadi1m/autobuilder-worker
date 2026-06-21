@@ -94,6 +94,7 @@ async function processJob(job) {
 
   // The actual commands to run
   const script = `
+    echo "[Bash] Setting up repository..."
     if [ ! -d "${workDir}" ]; then
       echo "Repository not found locally. Cloning..."
       sudo mkdir -p "$(dirname "${workDir}")" || exit 1
@@ -103,28 +104,37 @@ async function processJob(job) {
     fi
     cd ${workDir} || exit 1
     
+    echo "[Bash] Updating remote and pulling..."
     # Securely update the remote URL in case the token changed
     git remote set-url origin ${cloneUrl}
     git pull || exit 1
     
+    echo "[Bash] Removing old container if exists..."
+    # Delete the old container (only if it exists) to free memory before build
+    if [ "$(docker ps -aq -f name=^${containerName}$ 2> /dev/null)" ]; then docker rm -f ${containerName}; fi
+
+    echo "[Bash] Removing old image if exists..."
     # Delete old image (only if it exists to avoid messy error logs)
     if [ "$(docker images -q ${imageName} 2> /dev/null)" ]; then docker rmi -f ${imageName}; fi
     
-    # Build the new image (old container is still running here, zero downtime during build!)
+    echo "[Bash] Building new image..."
+    # Build the new image
     docker build -t ${imageName} . || exit 1
     
+    echo "[Bash] Cleaning up repository files..."
     # Delete the repo to save disk space
     cd ..
     rm -rf "${workDir}"
     
-    # Delete the old container (only if it exists)
-    if [ "$(docker ps -aq -f name=^${containerName}$ 2> /dev/null)" ]; then docker rm -f ${containerName}; fi
-    
+    echo "[Bash] Starting new container..."
     # Build new container and start new (using host network)
     docker run -d --name ${containerName} --network host --restart unless-stopped ${portArg} ${imageName}
     
+    echo "[Bash] Pruning docker system..."
     # Prune system to save space
     docker system prune -a --volumes -f
+    
+    echo "[Bash] Deployment script finished successfully."
   `;
 
   try {
