@@ -139,10 +139,10 @@ async function processJob(job) {
 
   try {
     const output = await executeShell(script);
-    await sendLog(repoName, commitId, 'success', output);
+    await sendLog(repoName, commitId, 'success', output, containerName);
   } catch (err) {
     console.error(`[Worker] Job failed: ${err.message}`);
-    await sendLog(repoName, commitId, 'failure', err.message + '\n' + err.output);
+    await sendLog(repoName, commitId, 'failure', err.message + '\n' + err.output, containerName);
   }
 }
 
@@ -183,7 +183,7 @@ function executeShell(script) {
   });
 }
 
-async function sendLog(repoName, commitId, status, logOutput) {
+async function sendLog(repoName, commitId, status, logOutput, containerName) {
   try {
     const res = await fetch(`http://${CONTROL_PLANE_HOST}/worker/log`, {
       method: 'POST',
@@ -193,7 +193,8 @@ async function sendLog(repoName, commitId, status, logOutput) {
         repo_name: repoName,
         commit_id: commitId,
         status: status,
-        log_output: logOutput
+        log_output: logOutput,
+        container_name: containerName
       })
     });
     console.log(`[Worker] Log submitted. Status: ${res.status}`);
