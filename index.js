@@ -2,8 +2,8 @@ const WebSocket = require('ws');
 const { exec, spawn } = require('child_process');
 const os = require('os');
 const si = require('systeminformation');
+const fs = require('fs');
 const Docker = require('dockerode');
-
 // Assuming a standard Docker socket setup. If on Windows it might differ, but typical Linux is /var/run/docker.sock
 const docker = new Docker(); 
 
@@ -16,6 +16,12 @@ console.log(`[Worker] Connecting to ws://${CONTROL_PLANE_HOST}/worker/ws`);
 
 let isProcessing = false;
 const containerLogStreams = {};
+
+const LOCK_FILE = '/tmp/worker_processing.lock';
+// Clear any stale lock file on startup
+if (fs.existsSync(LOCK_FILE)) {
+  try { fs.unlinkSync(LOCK_FILE); } catch (e) {}
+}
 
 // Keep-alive to prevent load balancers/proxies from dropping idle connections
 setInterval(() => {
@@ -55,6 +61,8 @@ ws.on('message', async function message(data) {
 
     if (msg.type === 'job') {
       isProcessing = true;
+      try { fs.writeFileSync(LOCK_FILE, 'locked'); } catch (e) {}
+      
       const job = msg.payload;
       console.log(`[Worker] Starting job for ${job.repo_name}`);
 
@@ -62,6 +70,8 @@ ws.on('message', async function message(data) {
       
       console.log(`[Worker] Job finished. Reporting idle.`);
       isProcessing = false;
+      try { if (fs.existsSync(LOCK_FILE)) fs.unlinkSync(LOCK_FILE); } catch(e) {}
+      
       ws.send('idle');
       return;
     }

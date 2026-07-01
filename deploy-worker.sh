@@ -6,6 +6,11 @@ GH_REPO="autobuilder-worker"
 CONTROL_PLANE_URL="http://51.81.87.208:3005/register"
 TARGET_DIR="/opt/worker"
 
+if [ -f "/tmp/worker_processing.lock" ]; then
+    echo "⚠️ Worker is currently processing a job. Skipping auto-update to avoid interrupting the build."
+    exit 0
+fi
+
 if [ -z "$1" ]; then
     echo "❌ Error: Control Plane registration token is required."
     exit 1
