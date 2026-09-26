@@ -3,6 +3,7 @@ const { exec, spawn } = require('child_process');
 const os = require('os');
 const si = require('systeminformation');
 const fs = require('fs');
+const path = require('path');
 const Docker = require('dockerode');
 // Assuming a standard Docker socket setup. If on Windows it might differ, but typical Linux is /var/run/docker.sock
 const docker = new Docker(); 
@@ -147,6 +148,32 @@ async function processJob(job) {
   const portArg = job.port_mapping ? `-p ${job.port_mapping}` : '';
   const cloneUrl = job.clone_url || `https://github.com/${repoName}.git`;
 
+  // Env files that live on this VPS: copied into the build context (so build-time loaders
+  // like Next.js see them) and passed to the container at runtime.
+  const envFiles = Array.isArray(job.env_files) ? job.env_files : [];
+  const copyEnvFiles = envFiles.map(f => `
+    if [ -f ${shq(f)} ]; then
+      echo ${shq(`[Bash] Mounting env file ${f}`)}
+      cp ${shq(f)} ${shq(path.posix.join(workDir, path.posix.basename(f)))} || exit 1
+    else
+      echo ${shq(`[Bash] Env file not found on this node: ${f}`)}
+      exit 1
+    fi`).join('\n');
+
+  // Manually managed variables are written to a private temp file outside the repo
+  let manualEnvFile = null;
+  if (job.env_vars && job.env_vars.trim()) {
+    const envDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autobuilder-env-'));
+    manualEnvFile = path.join(envDir, 'manual.env');
+    fs.writeFileSync(manualEnvFile, normalizeEnvVars(job.env_vars), { mode: 0o600 });
+  }
+
+  // Later --env-file flags override earlier ones, so manual vars win over files
+  const envArgs = [
+    ...envFiles.map(f => `--env-file ${shq(f)}`),
+    ...(manualEnvFile ? [`--env-file ${shq(manualEnvFile)}`] : [])
+  ].join(' ');
+
   // The actual commands to run
   const script = `
     echo "[Bash] Setting up repository..."
@@ -163,6 +190,7 @@ async function processJob(job) {
     # Securely update the remote URL in case the token changed
     git remote set-url origin ${cloneUrl}
     git pull || exit 1
+    ${copyEnvFiles}
     
     echo "[Bash] Removing old container if exists..."
     # Delete the old container (only if it exists) to free memory before build
@@ -183,7 +211,7 @@ async function processJob(job) {
     
     echo "[Bash] Starting new container..."
     # Build new container and start new (using host network)
-    docker run -d --name ${containerName} --network host --restart unless-stopped ${portArg} ${imageName}
+    docker run -d --name ${containerName} --network host --restart unless-stopped ${portArg} ${envArgs} ${imageName}
     
     echo "[Bash] Pruning docker system..."
     # Prune system to save space
@@ -198,7 +226,26 @@ async function processJob(job) {
   } catch (err) {
     console.error(`[Worker] Job failed: ${err.message}`);
     await sendLog(repoName, commitId, 'failure', err.message + '\n' + err.output, containerName);
+  } finally {
+    if (manualEnvFile) {
+      try { fs.rmSync(path.dirname(manualEnvFile), { recursive: true, force: true }); } catch (e) {}
+    }
   }
+}
+
+// Single-quote a value for safe interpolation into the bash script
+function shq(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+// Docker --env-file wants plain KEY=VALUE lines: drop comments/blanks and `export ` prefixes
+function normalizeEnvVars(text) {
+  return text
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line && !line.startsWith('#') && line.includes('='))
+    .map(line => line.replace(/^export\s+/, ''))
+    .join('\n') + '\n';
 }
 
 
